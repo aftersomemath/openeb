@@ -11,6 +11,7 @@
 
 #include "metavision/hal/facilities/i_events_stream_decoder.h"
 #include "metavision/hal/utils/hal_exception.h"
+#include <chrono>
 
 namespace Metavision {
 
@@ -38,6 +39,7 @@ bool I_EventsStreamDecoder::is_time_shifting_enabled() const {
 }
 
 void I_EventsStreamDecoder::decode(const RawData *const raw_data_begin, const RawData *const raw_data_end) {
+    auto start = std::chrono::high_resolution_clock::now();
     const RawData *cur_raw_data = raw_data_begin;
 
     // We first decode incomplete data from previous decode call
@@ -66,7 +68,9 @@ void I_EventsStreamDecoder::decode(const RawData *const raw_data_begin, const Ra
         get_raw_event_size_bytes() * (std::distance(cur_raw_data, raw_data_end) / get_raw_event_size_bytes());
 
     // Decode the data
+    auto mid10 = std::chrono::high_resolution_clock::now();
     decode_impl(cur_raw_data, raw_data_end_decodable_range);
+    auto mid11 = std::chrono::high_resolution_clock::now();
 
     if (raw_data_end_decodable_range != raw_data_end) {
         // If the decodable range was not the same as the input (i.e. not a multiple of event bytes size) then we
@@ -88,6 +92,13 @@ void I_EventsStreamDecoder::decode(const RawData *const raw_data_begin, const Ra
     for (auto it = time_cbs_map_.begin(), it_end = time_cbs_map_.end(); it != it_end; ++it) {
         it->second(last_ts);
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "I_EventsStreamDecoder::decode "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() << " "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(end-mid11).count() << " "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(mid11-mid10).count() << " "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(mid10-start).count() << " "
+              << std::endl; 
 }
 
 size_t I_EventsStreamDecoder::add_time_callback(const TimeCallback_t &cb) {

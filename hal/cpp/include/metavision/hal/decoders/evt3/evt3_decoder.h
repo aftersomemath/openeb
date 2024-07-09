@@ -89,6 +89,7 @@ private:
     }
 
     virtual void decode_impl(const RawData *const cur_raw_data, const RawData *const raw_data_end) override {
+        auto start = std::chrono::high_resolution_clock::now();
         const RawEvent *cur_raw_ev       = reinterpret_cast<const RawEvent *>(cur_raw_data);
         const RawEvent *const raw_ev_end = reinterpret_cast<const RawEvent *>(raw_data_end);
 
@@ -111,6 +112,7 @@ private:
                 }
             }
         }
+        auto mid10 = std::chrono::high_resolution_clock::now();
 
         // We first try to decode incomplete multiword event from previous decode call, if any
         if (raw_events_missing_count_ > 0) {
@@ -138,20 +140,47 @@ private:
                 return;
             }
         }
+        auto mid11 = std::chrono::high_resolution_clock::now();
 
         raw_events_missing_count_ = is_time_shifting_enabled() ? decode_events_buffer<true>(cur_raw_ev, raw_ev_end) :
                                                                  decode_events_buffer<false>(cur_raw_ev, raw_ev_end);
+        auto mid12 = std::chrono::high_resolution_clock::now();
+
         incomplete_multiword_raw_event_.insert(incomplete_multiword_raw_event_.end(), cur_raw_ev, raw_ev_end);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "EVT3Decoder::decode_impl "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() << " "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(end-mid12).count() << " "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(mid12-mid11).count() << " "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(mid11-mid10).count() << " "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(mid10-start).count() << " "
+                  << std::endl;
     }
 
     template<bool DO_TIMESHIFT>
     uint32_t decode_events_buffer(const RawEvent *&cur_raw_ev, const RawEvent *const raw_ev_end) {
+        auto start = std::chrono::high_resolution_clock::now();
         auto &cd_forwarder        = cd_event_forwarder();
         auto &trigger_forwarder   = trigger_event_forwarder();
         auto &erc_count_forwarder = erc_count_event_forwarder();
+
+        unsigned long long if1 = 0;
+        unsigned long long if1_count = 1;
+        unsigned long long if2 = 0;
+        unsigned long long if2_count = 1;
+        unsigned long long if3 = 0;
+        unsigned long long if3_count = 1;
+        unsigned long long if4 = 0;
+        unsigned long long if4_count = 1;
+        unsigned long long if5 = 0;
+        unsigned long long if5_count = 1;
+        unsigned long long if6 = 0;
+        unsigned long long if6_count = 1;
+
         for (; cur_raw_ev != raw_ev_end;) {
             const uint16_t type = cur_raw_ev->type;
             if (type == static_cast<EventTypesUnderlying_t>(EventTypesEnum::EVT_ADDR_X)) {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 if (is_valid) {
                     const Evt3Raw::Event_PosX *ev_posx = reinterpret_cast<const Evt3Raw::Event_PosX *>(cur_raw_ev);
                     if (validator.validate_event_cd(cur_raw_ev)) {
@@ -161,12 +190,17 @@ private:
                     }
                 }
                 ++cur_raw_ev;
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if1 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if1_count += 1;
 
             } else if (type == static_cast<EventTypesUnderlying_t>(EventTypesEnum::VECT_12)) {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 constexpr uint32_t vect12_size = sizeof(Evt3Raw::Event_Vect12_12_8) / sizeof(RawEvent);
                 if (cur_raw_ev + vect12_size > raw_ev_end) {
                     // Not enough raw data to decode the vect12_12_8 events. Stop decoding this buffer and return the
                     // amount of data missing to wait for to be able to decode on the next call
+                    std::cout << "decode_events_buffer return1" << std::endl;
                     return std::distance(raw_ev_end, cur_raw_ev + vect12_size);
                 }
                 if (!is_valid) {
@@ -204,7 +238,12 @@ private:
                     state[(int)EventTypesEnum::VECT_BASE_X] += nb_bits;
                 }
                 cur_raw_ev += next_offset;
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if2 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if2_count += 1;
+
             } else if (type == static_cast<EventTypesUnderlying_t>(EventTypesEnum::EVT_TIME_HIGH)) {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 const Evt3Raw::Event_Time *ev_timehigh    = reinterpret_cast<const Evt3Raw::Event_Time *>(cur_raw_ev);
                 static constexpr timestamp max_timestamp_ = 1ULL << 11;
 
@@ -221,7 +260,13 @@ private:
                 last_timestamp_.bitfield_time.high = ev_timehigh->time;
 
                 ++cur_raw_ev;
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if3 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if3_count += 1;
+
+
             } else if (type == static_cast<EventTypesUnderlying_t>(EventTypesEnum::EXT_TRIGGER)) {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 if (validator.validate_ext_trigger(cur_raw_ev)) {
                     const Evt3Raw::Event_ExtTrigger *ev_exttrigger =
                         reinterpret_cast<const Evt3Raw::Event_ExtTrigger *>(cur_raw_ev);
@@ -229,7 +274,12 @@ private:
                                               static_cast<short>(ev_exttrigger->id));
                 }
                 ++cur_raw_ev;
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if4 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if4_count += 1;
+
             } else if (type == static_cast<EventTypesUnderlying_t>(EventTypesEnum::OTHERS)) {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 const uint16_t master_type = cur_raw_ev->content;
                 bool is_out_count_evt      = false;
 
@@ -242,6 +292,7 @@ private:
                     if (cur_raw_ev + evt_size > raw_ev_end) {
                         // Not enough raw data to decode the continue events. Stop decoding this buffer and return the
                         // amount of data missing to wait for to be able to decode on the next call
+                        std::cout << "decode_events_buffer return2" << std::endl;
                         return std::distance(raw_ev_end, cur_raw_ev + evt_size);
                     }
                     ++cur_raw_ev;
@@ -260,7 +311,12 @@ private:
                     ++cur_raw_ev;
                     break;
                 }
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if5 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if5_count += 1;
+
             } else {
+                auto start_if = std::chrono::high_resolution_clock::now();
                 // The objective is to reduce the number of possible cases
                 // The content of each type is store into a state because the encoding is stateful
                 state[type] = cur_raw_ev->content;
@@ -280,9 +336,23 @@ private:
                 validator.state_update(cur_raw_ev);
 
                 ++cur_raw_ev;
+                auto end_if = std::chrono::high_resolution_clock::now();
+                if6 += std::chrono::duration_cast<std::chrono::nanoseconds>(end_if-start_if).count();
+                if6_count += 1;
+
             }
         }
 
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "EVT3Decoder::decode_events_buffer "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() << " "
+                  << if1 << " " << if1_count << " " << if1 / if1_count << " : "
+                  << if2 << " " << if2_count << " " << if2 / if2_count << " : "
+                  << if3 << " " << if3_count << " " << if3 / if3_count << " : "
+                  << if4 << " " << if4_count << " " << if4 / if4_count << " : "
+                  << if5 << " " << if5_count << " " << if5 / if5_count << " : "
+                  << if6 << " " << if6_count << " " << if6 / if6_count << " : "
+                  << std::endl;
         // All raw events have been fully decoded: no data missing to decode a full event
         return 0;
     }

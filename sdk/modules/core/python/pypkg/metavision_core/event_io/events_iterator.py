@@ -14,7 +14,7 @@ from .raw_reader import RawReaderBase
 from .py_reader import EventDatReader
 from .h5_io import HDF5EventsReader
 import numpy as np
-
+import time
 
 class EventsIterator(object):
     """
@@ -146,7 +146,9 @@ class EventsIterator(object):
             self.reader.seek_time(self.start_ts)
             self.current_time = self.reader.current_time
             prev_ts = self.current_time
+            t_end_last = time.time()
             while not self.reader.is_done():
+                t_start = time.time()
                 if self.end_ts is not None:
                     if prev_ts >= self.end_ts:
                         break
@@ -155,6 +157,7 @@ class EventsIterator(object):
                     events = self._load()
                 except StopIteration:
                     break
+                t_mid = time.time()
 
                 if self.mode == "delta_t":
                     if events.size > 0:
@@ -195,6 +198,9 @@ class EventsIterator(object):
                 if (events.size == 0) and (self.end_ts is not None) and (prev_ts >= self.end_ts):
                     # no need to return the last empty array
                     break
+                t_end = time.time()
+                print('iterator {:0.3f} {:0.3f} {:0.3f}'.format(t_end-t_start, t_mid-t_start, t_end - t_end_last))
+                t_end_last = t_end
                 yield events
             self.reader_is_done = True
             self.current_time = self.reader.current_time

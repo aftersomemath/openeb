@@ -25,6 +25,7 @@ from metavision_sdk_core import SharedCdEventsBufferProducer as EventsBufferProd
 from metavision_sdk_base import EventCD
 from metavision_sdk_base import EventExtTrigger
 
+import time
 
 def initiate_device(path, do_time_shifting=True, use_external_triggers=[]):
     """
@@ -142,8 +143,13 @@ class RawReaderBase(object):
             self._decode_done = True
             self.buffer_producer.flush()
             return False
+
+        t_start = time.time()
         data = self.i_events_stream.get_latest_raw_data()
+        t_mid = time.time()
         self.i_events_stream_decoder.decode(data)
+        t_end = time.time()
+        print('_run {:0.4f} {:0.4f}'.format(t_end-t_start, t_mid-t_start))
 
         return True
 
@@ -311,9 +317,11 @@ class RawReaderBase(object):
         Returns:
             events
         """
-
+        t_start = time.time()
         while not (self._decode_done or len(self._event_buffer)):
             self._run()
+        t_mid = time.time()
+
         # if enough events have been decoded, we take the first buffer in the queue.
         if len(self._event_buffer):
             current_ts, events = self._event_buffer.popleft()
@@ -329,6 +337,8 @@ class RawReaderBase(object):
             if events.size:
                 self.current_time = events[-1]['t']
 
+        t_end = time.time()
+        print('load {:0.4f} {:0.4f}\n\n'.format(t_end-t_start, t_mid-t_start))
         return events
 
     def load_n_events(self, n_events):
